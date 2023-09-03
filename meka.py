@@ -52,10 +52,10 @@ class K:
  def down()->bool:
   return key(19) or btn(1)
  def boost()->bool:
-  return key(48) or btn(6) or key(64)
+  return key(48) or key(64)
 
 class Meka:
- def __init__(self, frame: "Part", legs: "Leg", l: "Weapon", r: "Weapon", x=0, y=0):
+ def __init__(self, frame: "Frame", legs: "Leg", l: "Weapon", r: "Weapon", x=0, y=0):
   self.pos: Vectic=Vectic(x, y)
   self.frame=frame
   self.legs: "Leg"=legs
@@ -63,6 +63,9 @@ class Meka:
   self.r_w=r
   self.moving=False
   self.dust=Particles(15,259,Particles.scatter)
+  self.health=self.total_health()
+ def total_health(self):
+  return 5*self.frame.defense+2*self.legs.defense+self.l_w.defense+self.r_w.defense
  def drw(self, F):
   self.dust.drw()
   self.frame.drw_anim(1, F, self.pos, 0)
@@ -75,9 +78,15 @@ class Meka:
   self.moving=False
   mv=Vectic(0,0)
   speed=self.legs.speed
-  if K.boost():
-   speed=self.legs.bst_speed
-   self.dust.reset_particle(20, self.pos)
+  if K.boost() and self.frame.energy>0:
+   self.frame.decrease_energy(self.legs.bst_cost)
+   if self.frame.can_bst():
+    sfx(48)
+    speed=self.legs.bst_speed
+    self.dust.reset_particle(20, self.pos)
+  else:
+   sfx(-1)
+   self.frame.recover_energy()
   if K.up(): mv.y-=speed
   if K.down(): mv.y+=speed
   if K.left(): mv.x-=speed
@@ -85,14 +94,17 @@ class Meka:
   if mv!=Vectic.zero(): self.moving=True
   if mv.x!=0 and mv.y!=0: mv/=1.5
   self.pos+=mv
+ def energy(self):
+  return self.frame.energy
+ def total_energy(self):
+  return self.frame.total_energy
 
 class Part:
- def __init__(self, d: int, idx: int, weight:int, clr: int, energy=10):
+ def __init__(self, d: int, idx: int, weight:int, clr: int):
   self.weight=weight
   self.defense=d
   self.idx=idx
   self.clr=clr
-  self.energy=energy
  def drw(self, pos: "Vectic", *args):
   pal(13,self.clr)
   spr(self.idx, pos.x, pos.y, *args)
@@ -102,17 +114,34 @@ class Part:
   spr(self.idx, pos.x, pos.y+math.sin(F/10+mod)-0.5, *args)
   pal()
 
+class Frame(Part):
+ def __init__(self, d: int, energy: int, weight: int, clr: int, recovery: int):
+  super(Frame, self).__init__(d, 256, weight, clr)
+  self.energy=energy
+  self.total_energy=energy
+  self.recovery=recovery
+ def recover_energy(self):
+  if self.energy>self.total_energy: self.energy=self.total_energy
+  if self.energy==self.total_energy: return
+  self.energy+=self.recovery
+ def decrease_energy(self, amount:int):
+  if self.energy<=0: return
+  self.energy-=amount
+ def can_bst(self):
+  return self.energy>self.total_energy/5
+
 class Weapon(Part):
  def __init__(self, d: int, typ: int, atk: int, weight: int, clr: int):
   super(Weapon, self).__init__(d, 258+typ*16, weight, clr)
   self.atk=atk
 
 class Leg(Part):
- def __init__(self, d: int, typ: int, speed: int, weight: int, clr: int, bst_speed: int=0):
+ def __init__(self, d: int, typ: int, speed: int, weight: int, clr: int, bst_speed: int, bst_cost: int):
   super(Leg, self).__init__(d, 257+typ*3*16, weight, clr)
   self.speed=speed
   if bst_speed==0: bst_speed=1.5*speed
   self.bst_speed=bst_speed
+  self.bst_cost=bst_cost
  def drw_anim(self, mod: int, F: int, pos: "Vectic", *args):
   pal(13,self.clr)
   spr(self.idx+16+(16 if F%20<10 else 0), pos.x, pos.y, *args)
@@ -120,13 +149,14 @@ class Leg(Part):
 
 class Game:
  def __init__(self):
-  self.player=Meka(Part(1,256,1,2),Leg(1,0,0.4,1,2,1),Weapon(1,0,1,1,2),Weapon(1,0,1,1,2))
+  self.player=Meka(Frame(1,50,1,2,2),Leg(1,0,0.4,1,2,1,1),Weapon(1,0,1,1,2),Weapon(1,0,1,1,2))
   self.curr_state=Game.create_game(self)
   self.curr_map=Vectic(0,0)
  def create_game(self):
   def g(F):
    cls(0)
    self.player.drw(F)
+   self.drw_ui()
   return g
  def drw_map():
   cm=Game.curr_map
@@ -141,6 +171,12 @@ class Game:
   for i in range(8):
    if fget(idx,i): flags[i]=True
   return flags
+ def drw_ui(self):
+  e=self.player.energy()
+  total_e=self.player.total_energy()
+  r_w=100
+  rect(0,0,r_w*self.player.health/self.player.total_health(),5,2)
+  rect(0,8,r_w*e/total_e,5,4)
 
 class Vectic:
  def __init__(A,x,y):
@@ -176,6 +212,7 @@ class Vectic:
  def norm(A):return A.dist(Vectic.zero())
  def normalized(A):return A/A.norm()
  def rot(A,t):return Vectic(A.x*math.cos(t)-A.x*math.sin(t),A.y*math.sin(t)+A.y*math.cos(t))
+ def copy(A):return Vectic(A.x,A.y)
  def zero():return Vectic(0,0)
 
 def pal(c0=None,c1=None):
@@ -198,9 +235,11 @@ G=Game()
 # 001:0000000000000000000000000000000000000000000000000000000000d00d00
 # 002:0000000000000000000000000d0000000d000000000000000000000000000000
 # 003:00000000000000000000c00000000c0000c00000000c00000000000000000000
+# 016:cc000000c000000000000000000c000000000000000000c000000cc000000000
 # 017:00000000000000000000000000000000000000000000000000000d0000d00000
 # 018:0000000000000000000000000d000000dd000000000000000000000000000000
 # 019:000dd000000dd000000000000d0dd0d0dd0dd0dd0d0dd0d00000000000dddd00
+# 032:000000000cc000000c000000000c000000000c000000cc000000000000000000
 # 033:00000000000000000000000000000000000000000000000000d0000000000d00
 # 034:0000000000000000dd0000000d0000000d000000000000000000000000000000
 # 049:0000000000000000000000000000000000000000000000000000000000dddd00
@@ -223,11 +262,19 @@ G=Game()
 # </WAVES>
 
 # <SFX>
-# 000:000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000304000000000
+# 000:020002000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200102000000000
+# 048:932ba33bb33cb33cb34dd34ce35df35df35de35ee35ee36fe36fe36de360e370e371e372e372d383d384d384d386c387c387c386b386c386b386c386107000000000
 # </SFX>
 
+# <PATTERNS>
+# 000:800002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+# 001:000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e00002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+# 002:d00002000000000000700002000000000000900002000000000000b00002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+# 003:800002000000000000d00002000000000000600002000000b00002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+# </PATTERNS>
+
 # <TRACKS>
-# 000:100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+# 000:1800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002300ff
 # </TRACKS>
 
 # <PALETTE>
