@@ -6,15 +6,41 @@
 # version: 0.1
 # script:  python
 import math
+import random
 
 F=0
-S=lambda _:_
 
 def TIC():
  global F
- global S
- S(F)
+ global G
+ G.curr_state(F)
  F+=1
+
+class Particles:
+ def __init__(self, count: int, idx: int, behavior: callable):
+  self.particles:list["Particle"]=[Particle(Vectic(0,0), 0, idx, behavior) for _ in range(count)]
+  self.curr_reset=0
+ def drw(self):
+  for p in self.particles:
+   if p.life > 0:
+    p.drw()
+    p.behavior(p)
+    p.life-=1
+ def reset_particle(self, life:int, origin: "Vectic"):
+  self.particles[self.curr_reset].life=life
+  self.particles[self.curr_reset].pos=Vectic(origin.x, origin.y)
+  self.curr_reset=(self.curr_reset+1)%len(self.particles)
+ def scatter(part: "Particle"):
+  part.pos+=Vectic(random.randint(-1,1)/3,random.randint(-1,1)/3)
+ 
+class Particle:
+ def __init__(self, pos: "Vectic", life: int, idx: int, behavior: callable):
+  self.pos=pos
+  self.life=life
+  self.idx=idx
+  self.behavior=behavior
+ def drw(self):
+  spr(self.idx, self.pos.x, self.pos.y, 0)
 
 class K:
  def up()->bool:
@@ -36,7 +62,9 @@ class Meka:
   self.l_w=l
   self.r_w=r
   self.moving=False
+  self.dust=Particles(15,259,Particles.scatter)
  def drw(self, F):
+  self.dust.drw()
   self.frame.drw_anim(1, F, self.pos, 0)
   if not self.moving: self.legs.drw(self.pos, 0)
   else: self.legs.drw_anim(0, F, self.pos, 0)
@@ -47,7 +75,9 @@ class Meka:
   self.moving=False
   mv=Vectic(0,0)
   speed=self.legs.speed
-  if K.boost(): speed=self.legs.bst_speed
+  if K.boost():
+   speed=self.legs.bst_speed
+   self.dust.reset_particle(20, self.pos)
   if K.up(): mv.y-=speed
   if K.down(): mv.y+=speed
   if K.left(): mv.x-=speed
@@ -88,6 +118,30 @@ class Leg(Part):
   spr(self.idx+16+(16 if F%20<10 else 0), pos.x, pos.y, *args)
   pal()
 
+class Game:
+ def __init__(self):
+  self.player=Meka(Part(1,256,1,2),Leg(1,0,0.4,1,2,1),Weapon(1,0,1,1,2),Weapon(1,0,1,1,2))
+  self.curr_state=Game.create_game(self)
+  self.curr_map=Vectic(0,0)
+ def create_game(self):
+  def g(F):
+   cls(0)
+   self.player.drw(F)
+  return g
+ def drw_map():
+  cm=Game.curr_map
+  map(cm.x,cm.y,cm.x+30,cm.y+17,0,0)
+ def coord_to_map(v: "Vectic"):
+  x=v.x//8
+  y=v.y//8
+  return x+Game.curr_map.x,y+Game.curr_map.y
+ def flag_at(v: "Vectic"):
+  idx=mget(v.x,v.y)
+  flags={}
+  for i in range(8):
+   if fget(idx,i): flags[i]=True
+  return flags
+
 class Vectic:
  def __init__(A,x,y):
   A.x=x
@@ -124,21 +178,13 @@ class Vectic:
  def rot(A,t):return Vectic(A.x*math.cos(t)-A.x*math.sin(t),A.y*math.sin(t)+A.y*math.cos(t))
  def zero():return Vectic(0,0)
 
-def create_game():
- m1=Meka(Part(1,256,1,2),Leg(1,0,0.4,1,2),Weapon(1,0,1,1,2),Weapon(1,0,1,1,2))
- def g(F):
-  cls(0)
-  m1.drw(F)
- return g
-
-S=create_game()
-
 def pal(c0=None,c1=None):
  if(c0==None and c1==None):
   for i in range(16):
    poke4(0x3FF0*2+i,i)
  else: poke4(0x3FF0*2+c0,c1)
 
+G=Game()
 
 # <TILES>
 # 204:ddddddd0d00000d0d00200d0d00200d0d00200d0d00000d0d00000d0d00000d0
@@ -151,6 +197,7 @@ def pal(c0=None,c1=None):
 # 000:000dd000000dd00000000000000dd000000dd000000dd0000000000000000000
 # 001:0000000000000000000000000000000000000000000000000000000000d00d00
 # 002:0000000000000000000000000d0000000d000000000000000000000000000000
+# 003:00000000000000000000c00000000c0000c00000000c00000000000000000000
 # 017:00000000000000000000000000000000000000000000000000000d0000d00000
 # 018:0000000000000000000000000d000000dd000000000000000000000000000000
 # 019:000dd000000dd000000000000d0dd0d0dd0dd0dd0d0dd0d00000000000dddd00
