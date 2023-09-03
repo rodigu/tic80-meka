@@ -17,19 +17,24 @@ def TIC():
  F+=1
 
 class K:
- up=23
- left=1
- right=4
- down=19
- shift=64
+ def up()->bool:
+  return key(23) or btn(0)
+ def left()->bool:
+  return key(1) or btn(2)
+ def right()->bool:
+  return key(4) or btn(3)
+ def down()->bool:
+  return key(19) or btn(1)
+ def boost()->bool:
+  return key(48) or btn(6) or key(64)
 
 class Meka:
- def __init__(self, m: list["Part"], x=0, y=0):
-  self.pos: Vector=Vector(x, y)
-  self.frame=m[0]
-  self.legs: "Leg"=m[1]
-  self.l_w=m[2]
-  self.r_w=m[3]
+ def __init__(self, frame: "Part", legs: "Leg", l: "Weapon", r: "Weapon", x=0, y=0):
+  self.pos: Vectic=Vectic(x, y)
+  self.frame=frame
+  self.legs: "Leg"=legs
+  self.l_w=l
+  self.r_w=r
   self.moving=False
  def drw(self, F):
   self.frame.drw_anim(1, F, self.pos, 0)
@@ -40,14 +45,14 @@ class Meka:
   self.move(F)
  def move(self, F):
   self.moving=False
-  mv=Vector(0,0)
+  mv=Vectic(0,0)
   speed=self.legs.speed
-  if key(K.shift): speed=self.legs.bst_speed
-  if key(K.up): mv.y-=speed
-  if key(K.down): mv.y+=speed
-  if key(K.left): mv.x-=speed
-  if key(K.right): mv.x+=speed
-  if mv==Vector.zero(): self.moving=True
+  if K.boost(): speed=self.legs.bst_speed
+  if K.up(): mv.y-=speed
+  if K.down(): mv.y+=speed
+  if K.left(): mv.x-=speed
+  if K.right(): mv.x+=speed
+  if mv!=Vectic.zero(): self.moving=True
   if mv.x!=0 and mv.y!=0: mv/=1.5
   self.pos+=mv
 
@@ -58,14 +63,19 @@ class Part:
   self.idx=idx
   self.clr=clr
   self.energy=energy
- def drw(self, pos: "Vector", *args):
+ def drw(self, pos: "Vectic", *args):
   pal(13,self.clr)
   spr(self.idx, pos.x, pos.y, *args)
   pal()
- def drw_anim(self, mod: int, F: int, pos: "Vector", *args):
+ def drw_anim(self, mod: int, F: int, pos: "Vectic", *args):
   pal(13,self.clr)
   spr(self.idx, pos.x, pos.y+math.sin(F/10+mod)-0.5, *args)
   pal()
+
+class Weapon(Part):
+ def __init__(self, d: int, typ: int, atk: int, weight: int, clr: int):
+  super(Weapon, self).__init__(d, 258+typ*16, weight, clr)
+  self.atk=atk
 
 class Leg(Part):
  def __init__(self, d: int, typ: int, speed: int, weight: int, clr: int, bst_speed: int=0):
@@ -73,68 +83,53 @@ class Leg(Part):
   self.speed=speed
   if bst_speed==0: bst_speed=1.5*speed
   self.bst_speed=bst_speed
- def drw_anim(self, mod: int, F: int, pos: "Vector", *args):
+ def drw_anim(self, mod: int, F: int, pos: "Vectic", *args):
   pal(13,self.clr)
   spr(self.idx+16+(16 if F%20<10 else 0), pos.x, pos.y, *args)
   pal()
 
-class Vector:
- def __init__(self, x:int, y:int):
-  self.x=x
-  self.y=y
- def __add__(self, v: "Vector"):
-  return Vector(v.x+self.x, v.y+self.y)
- def __iadd__(self, v: "Vector"):
-  self.x+=v.x
-  self.y+=v.y
-  return self
- def __sub__(self, v: "Vector"):
-  return Vector(self.x-v.x,self.y-v.y)
- def __isub__(self, v: "Vector"):
-  self.x-=v.x
-  self.y-=v.y
-  return self
- def __mul__(self, s: int|float):
-  return Vector(self.x*s, self.y*s)
- def __imul__(self, s: int|float):
-  self.x*=s
-  self.y*=s
-  return self
- def __repr__(self):
-  return f"Vector({self.x}, {self.y})"
- def __truediv__(self, s):
-  if isinstance(s,Vector):
-   return Vector(self.x/s.x, self.y/s.y)
-  return Vector(self.x/s,self.y/s)
- def __floordiv__(self, s):
-  if isinstance(s,Vector):
-   return Vector(self.x//s.x, self.y//s.y)
-  return Vector(self.x//s,self.y//s)
- def __floor__(self):
-  return self//1
- def __len__(self):
-  return self.norm()
- def __eq__(self, v: "Vector"):
-  return self.x==v.x and self.y==v.y
- def dist(self, v: "Vector"):
-  return math.sqrt(self.dist2(v))
- def dist2(self, v: "Vector"):
-  return (self.x-v.x)**2 +(self.y-v.y)**2
- def norm(self):
-  return self.dist(Vector.zero())
- def normalized(self):
-  return self / self.norm()
- def rot(self,t: int|float):
-  return Vector(self.x*math.cos(t)-self.x*math.sin(t), self.y*math.sin(t)+self.y*math.cos(t))
- def zero():
-  return Vector(0,0)
- 
+class Vectic:
+ def __init__(A,x,y):
+  A.x=x
+  A.y=y
+ def __add__(A,v):return Vectic(v.x+A.x,v.y+A.y)
+ def __iadd__(A,v):
+  A.x+=v.x
+  A.y+=v.y
+  return A
+ def __sub__(A,v):return Vectic(A.x-v.x,A.y-v.y)
+ def __isub__(A,v):
+  A.x-=v.x
+  A.y-=v.y
+  return A
+ def __mul__(A,s):return Vectic(A.x*s,A.y*s)
+ def __imul__(A,s):
+  A.x*=s
+  A.y*=s
+  return A
+ def __repr__(A):return f"Vectic({A.x}, {A.y})"
+ def __truediv__(A,s):
+  if isinstance(s,Vectic):return Vectic(A.x/s.x,A.y/s.y)
+  return Vectic(A.x/s,A.y/s)
+ def __floordiv__(A,s):
+  if isinstance(s,Vectic):return Vectic(A.x//s.x,A.y//s.y)
+  return Vectic(A.x//s,A.y//s)
+ def __floor__(A):return A//1
+ def __len__(A):return A.norm()
+ def __eq__(A,v):return A.x==v.x and A.y==v.y
+ def dist(A,v):return math.sqrt(A.dist2(v))
+ def dist2(A,v):return(A.x-v.x)**2+(A.y-v.y)**2
+ def norm(A):return A.dist(Vectic.zero())
+ def normalized(A):return A/A.norm()
+ def rot(A,t):return Vectic(A.x*math.cos(t)-A.x*math.sin(t),A.y*math.sin(t)+A.y*math.cos(t))
+ def zero():return Vectic(0,0)
+
 def create_game():
-  m1=Meka([Part(1,256,1,2),Leg(1,0,0.4,1,2),Part(1,258,1,2),Part(1,258,1,2)])
-  def g(F):
-   cls(0)
-   m1.drw(F)
-  return g
+ m1=Meka(Part(1,256,1,2),Leg(1,0,0.4,1,2),Weapon(1,0,1,1,2),Weapon(1,0,1,1,2))
+ def g(F):
+  cls(0)
+  m1.drw(F)
+ return g
 
 S=create_game()
 
